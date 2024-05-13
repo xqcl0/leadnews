@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.extension.api.R;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.heima.common.constants.WemediaConstants;
@@ -12,6 +13,7 @@ import com.heima.common.exception.CustomException;
 import com.heima.model.common.dtos.PageResponseResult;
 import com.heima.model.common.dtos.ResponseResult;
 import com.heima.model.common.enums.AppHttpCodeEnum;
+import com.heima.model.wemedia.dtos.WmDownOrUpDto;
 import com.heima.model.wemedia.dtos.WmNewsDto;
 import com.heima.model.wemedia.dtos.WmNewsPageReqDto;
 import com.heima.model.wemedia.pojos.WmMaterial;
@@ -102,49 +104,117 @@ public class WmNewsServiceImpl extends ServiceImpl<WmNewsMapper, WmNews> impleme
     }
 
     /**
-     * 发布文章或保存草稿
+     * 发布修改文章或保存为草稿
      *
-     * @param wmNewsDto
+     * @param dto
      * @return
      */
     @Override
-    public ResponseResult submitNews(WmNewsDto wmNewsDto) {
-
+    public ResponseResult submitNews(WmNewsDto dto) {
 
         //0.条件判断
-        if (wmNewsDto == null || wmNewsDto.getContent() == null) {
+        if (dto == null || dto.getContent() == null) {
             return ResponseResult.errorResult(AppHttpCodeEnum.PARAM_INVALID);
         }
 
         //1.保存或修改文章
-        //属性拷贝 属性名词和类型相同才能拷贝
-        if (wmNewsDto.getPublishTime() == null) {
-            wmNewsDto.setPublishTime(new Date());
-        }
+
         WmNews wmNews = new WmNews();
-        BeanUtils.copyProperties(wmNewsDto, wmNews);
+        //属性拷贝 属性名词和类型相同才能拷贝
+        BeanUtils.copyProperties(dto, wmNews);
+        if(wmNews.getPublishTime()==null){
+            wmNews.setPublishTime(new Date());
+        }
         //封面图片  list---> string
-        if (wmNewsDto.getImages() != null && wmNewsDto.getImages().size() > 0) {
-            String images = StringUtils.join(wmNewsDto.getImages(), "");
-            wmNews.setImages(images);
+        if (dto.getImages() != null && dto.getImages().size() > 0) {
+            //[1dddfsd.jpg,sdlfjldk.jpg]-->   1dddfsd.jpg,sdlfjldk.jpg
+            String imageStr = StringUtils.join(dto.getImages(), ",");
+            wmNews.setImages(imageStr);
         }
         //如果当前封面类型为自动 -1
-        if (WemediaConstants.WM_NEWS_TYPE_AUTO.equals(wmNewsDto.getType())) {
+        if (dto.getType().equals(WemediaConstants.WM_NEWS_TYPE_AUTO)) {
             wmNews.setType(null);
         }
-        saveOrUpdateNews(wmNews);
+
+        saveOrUpdateWmNews(wmNews);
+
         //2.判断是否为草稿  如果为草稿结束当前方法
-        if (wmNewsDto.getStatus().equals(WmNews.Status.NORMAL.getCode())) {
+        if (dto.getStatus().equals(WmNews.Status.NORMAL.getCode())) {
             return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS);
         }
 
         //3.不是草稿，保存文章内容图片与素材的关系
         //获取到文章内容中的图片信息
-        List<String> imgUrl = extractUrlInfo(wmNewsDto.getContent());
-        saveRelativeInfoForContent(imgUrl, wmNews.getId());
-        //4.不是草稿，保存文章封面图片与素材的关系，如果当前布局是自动，需要匹配封面图片
-        saveRelativeInfoForCover(wmNewsDto, wmNews, imgUrl);
+        List<String> materials = extractUrlInfo(dto.getContent());
+        saveRelativeInfoForContent(materials, wmNews.getId());
 
+        //4.不是草稿，保存文章封面图片与素材的关系，如果当前布局是自动，需要匹配封面图片
+        saveRelativeInfoForCover(dto, wmNews, materials);
+
+        return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS);
+
+    }
+
+    /**
+     * 查看文章详情
+     *
+     * @param id
+     * @return
+     */
+    @Override
+    public ResponseResult findOne(Integer id) {
+        if (id == null) {
+            return ResponseResult.errorResult(AppHttpCodeEnum.PARAM_INVALID);
+        }
+        WmNews news = getById(id);
+        if (news == null) {
+            return ResponseResult.errorResult(AppHttpCodeEnum.DATA_NOT_EXIST);
+        }
+        return ResponseResult.okResult(news);
+    }
+
+    /**
+     * 删除文章
+     *
+     * @param id
+     * @return
+     */
+    @Override
+    public ResponseResult delNews(Integer id) {
+        if(id==null){
+            return ResponseResult.errorResult(AppHttpCodeEnum.PARAM_INVALID,"文章id不可缺少");
+        }
+        WmNews news = getById(id);
+        if (news == null) {
+            return ResponseResult.errorResult(AppHttpCodeEnum.DATA_NOT_EXIST);
+        }
+        if(news.getStatus().equals(WmNews.Status.PUBLISHED.getCode())){
+            return ResponseResult.errorResult(AppHttpCodeEnum.PARAM_INVALID,"文章已发布无法删除");
+        }
+        removeById(id);
+        return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS);
+    }
+
+    /**
+     * 上架或下架
+     *
+     * @param dto
+     * @return
+     */
+    @Override
+    public ResponseResult downOrUp(WmDownOrUpDto dto) {
+        if(dto.getId()==null){
+            return ResponseResult.errorResult(AppHttpCodeEnum.PARAM_INVALID,"文章id不可缺少");
+        }
+        WmNews news = getById(dto.getId());
+        if(news==null){
+            return ResponseResult.errorResult(AppHttpCodeEnum.DATA_NOT_EXIST);
+        }
+        if(news.getStatus()!=WmNews.Status.PUBLISHED.getCode()){
+            return ResponseResult.errorResult(AppHttpCodeEnum.PARAM_INVALID,"当前不是发布状态,无法上下架");
+        }
+        news.setEnable(dto.getEnable());
+        updateById(news);
         return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS);
     }
 
@@ -192,6 +262,7 @@ public class WmNewsServiceImpl extends ServiceImpl<WmNewsMapper, WmNews> impleme
 
     }
 
+
     /**
      * 处理文章内容图片与素材的关系
      *
@@ -201,6 +272,7 @@ public class WmNewsServiceImpl extends ServiceImpl<WmNewsMapper, WmNews> impleme
     private void saveRelativeInfoForContent(List<String> materials, Integer newsId) {
         saveRelativeInfo(materials, newsId, WemediaConstants.WM_CONTENT_REFERENCE);
     }
+
 
     /**
      * 保存文章图片与素材的关系到数据库中
@@ -239,7 +311,7 @@ public class WmNewsServiceImpl extends ServiceImpl<WmNewsMapper, WmNews> impleme
      * @param content
      * @return
      */
-    private List<String> ectractUrlInfo(String content) {
+    private List<String> extractUrlInfo(String content) {
         List<String> materials = new ArrayList<>();
 
         List<Map> maps = JSON.parseArray(content, Map.class);
@@ -255,37 +327,27 @@ public class WmNewsServiceImpl extends ServiceImpl<WmNewsMapper, WmNews> impleme
 
 
     /**
-     * 从content里面提取image列表
+     * 保存或修改文章
      *
-     * @param content
-     * @return
+     * @param wmNews
      */
-    private List<String> extractUrlInfo(String content) {
-        List<String> imgUrl = new LinkedList<>();
-        List<Map> maps = JSON.parseArray(content, Map.class);
-        for (Map map : maps) {
-            if (map.get("type") == "image") {
-                imgUrl.add((String) map.get("image"));
-            }
-        }
-        return imgUrl;
-    }
-
-    private void saveOrUpdateNews(WmNews wmNews) {
-        Integer userId = WmThreadLocalUtil.getUser().getId();
-        if (userId != null) {
-            wmNews.setUserId(userId);
-        }
+    private void saveOrUpdateWmNews(WmNews wmNews) {
+        //补全属性
+        wmNews.setUserId(WmThreadLocalUtil.getUser().getId());
         wmNews.setCreatedTime(new Date());
         wmNews.setSubmitedTime(new Date());
-        wmNews.setEnable((short) 1); //默认上架
+        wmNews.setEnable((short) 1);//默认上架
 
         if (wmNews.getId() == null) {
+            //保存
             save(wmNews);
         } else {
-            wmNewsMaterialMapper.delete(new LambdaQueryWrapper<WmNewsMaterial>().eq(WmNewsMaterial::getNewsId, wmNews.getId()));
+            //修改
+            //删除文章图片与素材的关系
+            wmNewsMaterialMapper.delete(Wrappers.<WmNewsMaterial>lambdaQuery().eq(WmNewsMaterial::getNewsId, wmNews.getId()));
             updateById(wmNews);
         }
+
     }
 
 }
