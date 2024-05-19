@@ -10,6 +10,6 @@ import org.springframework.stereotype.Component;
 public class IArticleClientFallback implements IArticleClient {
     @Override
     public ResponseResult saveArticle(ArticleDto dto) {
-        return ResponseResult.errorResult(AppHttpCodeEnum.SERVER_ERROR, "保存app端文章数据失败");
+        return ResponseResult.errorResult(AppHttpCodeEnum.SERVER_ERROR, "保存app端文章数据失败_fallback");
     }
 }
