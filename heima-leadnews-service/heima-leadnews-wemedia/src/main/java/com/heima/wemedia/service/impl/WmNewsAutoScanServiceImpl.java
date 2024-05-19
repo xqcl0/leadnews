@@ -78,6 +78,7 @@ public class WmNewsAutoScanServiceImpl implements WmNewsAutoScanService {
         }
     }
 
+    @Qualifier("IArticleClientFallback")
     @Autowired
     private IArticleClient articleClient;
 
