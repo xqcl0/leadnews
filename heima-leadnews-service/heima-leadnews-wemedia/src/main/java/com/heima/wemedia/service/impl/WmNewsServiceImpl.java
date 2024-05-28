@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.extension.api.R;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.heima.common.constants.WemediaConstants;
+import com.heima.common.constants.WmNewsMessageConstants;
 import com.heima.common.exception.CustomException;
 import com.heima.model.common.dtos.PageResponseResult;
 import com.heima.model.common.dtos.ResponseResult;
@@ -31,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +51,8 @@ public class WmNewsServiceImpl extends ServiceImpl<WmNewsMapper, WmNews> impleme
     private WmNewsAutoScanService wmNewsAutoScanService;
     @Autowired
     private WmNewsTaskService wmNewsTaskService;
-
+    @Autowired
+    private KafkaTemplate<String, String> kafkaTemplate;
     /**
      * 查询文章
      *
@@ -225,6 +228,13 @@ public class WmNewsServiceImpl extends ServiceImpl<WmNewsMapper, WmNews> impleme
         }
         news.setEnable(dto.getEnable());
         updateById(news);
+        //发送消息，通知article端修改文章配置
+        if(news.getArticleId() != null){
+            Map<String,Object> map = new HashMap<>();
+            map.put("articleId",news.getArticleId());
+            map.put("enable",dto.getEnable());
+            kafkaTemplate.send(WmNewsMessageConstants.WM_NEWS_UP_OR_DOWN_TOPIC,JSON.toJSONString(map));
+        }
         return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS);
     }
 

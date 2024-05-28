@@ -85,6 +85,7 @@ public class WmNewsAutoScanServiceImpl implements WmNewsAutoScanService {
     }
 
     @Autowired
+    @Qualifier("com.heima.apis.article.IArticleClient")
     private IArticleClient articleClient;
 
     @Autowired
