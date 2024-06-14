@@ -4,7 +4,10 @@ import com.alibaba.fastjson.JSON;
 import com.heima.model.common.dtos.ResponseResult;
 import com.heima.model.common.enums.AppHttpCodeEnum;
 import com.heima.model.search.dtos.UserSearchDto;
+import com.heima.model.user.pojos.ApUser;
+import com.heima.search.service.ApUserSearchService;
 import com.heima.search.service.ArticleSearchService;
+import com.heima.utils.thread.AppThreadLocalUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -30,6 +33,8 @@ import java.util.Map;
 public class ArticleSearchServiceImpl implements ArticleSearchService {
     @Resource
     RestHighLevelClient restHighLevelClient;
+    @Autowired
+    private ApUserSearchService apUserSearchService;
     /**
      * ES文章分页搜索
      *
@@ -43,6 +48,11 @@ public class ArticleSearchServiceImpl implements ArticleSearchService {
         if(dto == null || StringUtils.isBlank(dto.getSearchWords())){
             return ResponseResult.errorResult(AppHttpCodeEnum.PARAM_INVALID);
         }
+        //异步调用保存搜索记录
+        ApUser user = AppThreadLocalUtil.getUser();
+        if(user!=null&&dto.getFromIndex()==0){
+            apUserSearchService.insert(dto.getSearchWords(), user.getId());
+        }
 
         //2.设置查询条件
         SearchRequest searchRequest = new SearchRequest("app_info_article");
@@ -55,7 +65,7 @@ public class ArticleSearchServiceImpl implements ArticleSearchService {
         RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery("publishTime").lt(dto.getMinBehotTime().getTime());
         //布尔查询
         BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-        boolQueryBuilder.must(queryStringQueryBuilder).filter(rangeQueryBuilder);
+        boolQueryBuilder.must(queryStringQueryBuilder); //todo 不使用hotTime //.filter(rangeQueryBuilder);
 
         //分页查询
         searchSourceBuilder.from(0);
