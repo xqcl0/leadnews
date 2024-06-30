@@ -8,6 +8,7 @@ import com.heima.article.mapper.ApArticleMapper;
 import com.heima.article.service.ApArticleService;
 import com.heima.article.service.ArticleFreemarkerService;
 import com.heima.common.constants.ArticleConstants;
+import com.heima.common.constants.BehaviorConstants;
 import com.heima.model.article.dtos.ArticleDto;
 import com.heima.model.article.dtos.ArticleHomeDto;
 import com.heima.model.article.pojos.ApArticle;
@@ -20,6 +21,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.net.nntp.Article;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -123,9 +125,30 @@ public class ApArticleServiceImpl extends ServiceImpl<ApArticleMapper, ApArticle
         }
 
         //异步调用 生成静态文件上传到minio中
-        articleFreemarkerService.buildArticleToMinIO(apArticle,dto.getContent());
+        articleFreemarkerService.buildArticleToMinIO(apArticle, dto.getContent());
         //3.结果返回  文章的id
 
         return ResponseResult.okResult(apArticle.getId());
+    }
+
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    /**
+     * 同步数据
+     */
+    @Override
+    public void syncData() {
+        List<ApArticle> articles = list();
+        for (ApArticle article : articles) {
+            String id = article.getId().toString();
+            Long read = stringRedisTemplate.opsForHash().size(BehaviorConstants.READ_BEHAVIOR + id);
+            Long like = stringRedisTemplate.opsForHash().size(BehaviorConstants.LIKE_BEHAVIOR + id);
+            Long collection = stringRedisTemplate.opsForHash().size(BehaviorConstants.COLLECTION_BEHAVIOR + id);
+            article.setViews(Math.toIntExact(read));
+            article.setLikes(Math.toIntExact(like));
+            article.setCollection(Math.toIntExact(collection));
+            updateById(article);
+        }
     }
 }

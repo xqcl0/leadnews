@@ -21,4 +21,9 @@ public interface ApArticleService extends IService<ApArticle> {
      * @return
      */
     ResponseResult saveArticle(ArticleDto dto);
+
+    /**
+     * 同步数据
+     */
+    void syncData();
 }
