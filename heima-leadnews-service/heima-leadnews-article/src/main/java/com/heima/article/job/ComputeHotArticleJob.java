@@ -23,15 +23,19 @@ public class ComputeHotArticleJob {
     @XxlJob("computeHotArticleJob")
     public void handle() {
         log.info("热文章分值计算调度任务开始执行...");
+        long begin = System.currentTimeMillis();
         hotArticleService.computeHotArticle();
-        log.info("热文章分值计算调度任务结束...");
+        long end = System.currentTimeMillis();
+        log.info("热文章分值计算调度任务结束...耗时 {} ms", (end - begin));
 
     }
 
     @XxlJob("syncDataJob")
     public void handleSyncData() {
         log.info("同步redis用户行为数据至MySQL...");
+        long begin = System.currentTimeMillis();
         apArticleService.syncData();
-        log.info("同步用户行为数据结束...");
+        long end = System.currentTimeMillis();
+        log.info("同步用户行为数据结束... 耗时 {} ms", (end - begin));
     }
 }
