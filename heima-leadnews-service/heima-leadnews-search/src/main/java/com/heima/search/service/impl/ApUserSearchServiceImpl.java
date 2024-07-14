@@ -84,9 +84,9 @@ public class ApUserSearchServiceImpl implements ApUserSearchService {
      * @return
      */
     @Override
-    public ResponseResult delUserSearch(HistorySearchDto dto) {
+    public ResponseResult delUserSearch(String dto) {
         //1.检查参数
-        if(dto.getId() == null){
+        if(dto == null){
             return ResponseResult.errorResult(AppHttpCodeEnum.PARAM_INVALID);
         }
 
@@ -97,7 +97,7 @@ public class ApUserSearchServiceImpl implements ApUserSearchService {
         }
 
         //3.删除
-        mongoTemplate.remove(Query.query(Criteria.where("userId").is(user.getId()).and("id").is(dto.getId())),ApUserSearch.class);
+        mongoTemplate.remove(Query.query(Criteria.where("userId").is(user.getId()).and("id").is(dto)),ApUserSearch.class);
         return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS);
     }
 }

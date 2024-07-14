@@ -24,5 +24,5 @@ public interface ApUserSearchService {
      @param historySearchDto
      @return
      */
-    ResponseResult delUserSearch(HistorySearchDto historySearchDto);
+    ResponseResult delUserSearch(String historySearchDto);
 }

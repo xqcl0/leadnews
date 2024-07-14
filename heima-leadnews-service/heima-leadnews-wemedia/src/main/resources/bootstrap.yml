@@ -1,9 +1,6 @@
 server:
   port: 51803
 spring:
-  redis:
-    host: 192.168.118.128
-    port: 6379
   application:
     name: leadnews-wemedia
   cloud:
