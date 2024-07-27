@@ -3,10 +3,12 @@ package com.heima.behavior.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.heima.behavior.service.ApLikesBehaviorService;
 import com.heima.common.constants.BehaviorConstants;
+import com.heima.common.constants.HotArticleConstants;
 import com.heima.common.redis.CacheService;
 import com.heima.model.behavior.dtos.LikesBehaviorDto;
 import com.heima.model.common.dtos.ResponseResult;
 import com.heima.model.common.enums.AppHttpCodeEnum;
+import com.heima.model.mess.UpdateArticleMess;
 import com.heima.model.user.pojos.ApUser;
 import com.heima.utils.thread.AppThreadLocalUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +25,8 @@ public class ApLikesBehaviorServiceImpl implements ApLikesBehaviorService {
 
     @Autowired
     private CacheService cacheService;
+    @Autowired
+    private KafkaTemplate<String, String> kafkaTemplate;
 
     @Override
     public ResponseResult like(LikesBehaviorDto dto) {
@@ -37,7 +41,10 @@ public class ApLikesBehaviorServiceImpl implements ApLikesBehaviorService {
         if (user == null) {
             return ResponseResult.errorResult(AppHttpCodeEnum.NEED_LOGIN);
         }
-
+        //kafka发送消息
+        UpdateArticleMess msg = new UpdateArticleMess();
+        msg.setArticleId(dto.getArticleId());
+        msg.setType(UpdateArticleMess.UpdateArticleType.LIKES);
         //3.点赞  保存数据
         if (dto.getOperation() == 0) {
             Object obj = cacheService.hGet(BehaviorConstants.LIKE_BEHAVIOR + dto.getArticleId().toString(), user.getId().toString());
@@ -47,12 +54,14 @@ public class ApLikesBehaviorServiceImpl implements ApLikesBehaviorService {
             // 保存当前key
             log.info("保存当前key:{} ,{}, {}", dto.getArticleId(), user.getId(), dto);
             cacheService.hPut(BehaviorConstants.LIKE_BEHAVIOR + dto.getArticleId().toString(), user.getId().toString(), JSON.toJSONString(dto));
+            msg.setAdd(1);
         } else {
             // 删除当前key
             log.info("删除当前key:{}, {}", dto.getArticleId(), user.getId());
             cacheService.hDelete(BehaviorConstants.LIKE_BEHAVIOR + dto.getArticleId().toString(), user.getId().toString());
+            msg.setAdd(-1);
         }
-
+        kafkaTemplate.send(HotArticleConstants.HOT_ARTICLE_SCORE_TOPIC, JSON.toJSONString(msg));
 
         return ResponseResult.okResult(AppHttpCodeEnum.SUCCESS);
 
